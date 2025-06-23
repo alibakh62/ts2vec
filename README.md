@@ -92,3 +92,30 @@ test_repr = model.encode(
 )  # n_instances x n_timestamps x output_dims
 # (The timestamp t's representation vector is computed using the observations located in [t-50, t])
 ```
+
+## PySpark Support
+
+TS2Vec can be used together with PySpark DataFrames to process large datasets on CPU clusters. The helper functions in `spark_utils.py` allow running the encoder as a pandas UDF. Each row of the DataFrame should contain a time series stored as an array.
+
+```python
+from pyspark.sql import SparkSession
+from ts2vec import TS2Vec
+from spark_utils import encode_dataframe
+
+spark = SparkSession.builder.getOrCreate()
+df = spark.read.parquet('path/to/data')  # column "series" contains arrays
+
+model = TS2Vec(input_dims=df.selectExpr('size(series)').first()[0], device='cpu')
+model.load('model.pkl')
+
+# Apply the encoder on the DataFrame
+encoded_df = encode_dataframe(model, df, feature_col='series', output_col='repr')
+```
+
+Use `df_to_numpy` if the dataset fits in memory and you want to train on a DataFrame:
+
+```python
+from spark_utils import df_to_numpy
+train_data = df_to_numpy(df, 'series')
+model.fit(train_data, n_epochs=10)
+```
